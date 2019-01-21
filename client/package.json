@@ -13,7 +13,7 @@
     "browser-cookies": "^1.2.0",
     "vue": "^2.5.17",
     "vue-axios": "^2.1.4",
-    "vue-router": "^3.0.2",
+    "vue-quill-editor": "^3.0.6",
     "vuelidate": "^0.7.4"
   },
   "devDependencies": {

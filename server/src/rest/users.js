@@ -5,6 +5,12 @@ const jwt = require('jsonwebtoken')
 
 const TOKEN_EXP_SECONDS = 60 * 60 * 24 * 365
 
+const ADMIN = {
+  id: 'admin',
+  password: bcrypt.hashSync(process.env.AUTH_MASTER_PASSWORD, 8),
+  created: new Date().toISOString()
+}
+
 // Policy helper function
 // Source: https://github.com/serverless/examples/blob/master/aws-node-auth0-custom-authorizers-api/handler.js
 const generatePolicy = (principalId, effect, resource) => {
@@ -65,6 +71,8 @@ exports.register = async function (event, context) {
   if (!body.username) return badRequest('Username is required')
   if (!body.password) return badRequest('Password is required')
 
+  if (body.username === 'admin') return badRequest('User admin already exists')
+
   const test = await db.get(process.env.DYNAMODB_TABLE_USERS, { id: body.username })
   if (test) return badRequest('This username already exists')
 
@@ -88,7 +96,7 @@ exports.login = async function (event, context) {
   if (!body.username) return badRequest('Username is required')
   if (!body.password) return badRequest('Password is required')
 
-  const user = await db.get(process.env.DYNAMODB_TABLE_USERS, { id: body.username })
+  const user = body.username === 'admin' ? ADMIN : await db.get(process.env.DYNAMODB_TABLE_USERS, { id: body.username })
   if (!user) return unauthorized('Invalid username or password')
   if (!bcrypt.compareSync(body.password, user.password)) return unauthorized('Invalid username or password')
 

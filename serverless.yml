@@ -1,14 +1,15 @@
-service: node-bootstrap-vue
+service: serverless-aws-notes
 
 custom:
   apigs3:
     dist: client/dist
   dynamodb:
-    tablePosts: ${self:service}-${self:provider.stage}-posts
-    tableComments: ${self:service}-${self:provider.stage}-comments
     tableUsers: ${self:service}-${self:provider.stage}-users
+  s3:
+    bucketData: ${self:service}-${self:provider.stage}-data
   auth:
     secret: 'verysecrettoken'
+    masterPassword: 'admin'
 
 package:
   exclude:
@@ -34,11 +35,17 @@ provider:
   runtime: nodejs8.10
   memorySize: 128
   environment:
-    DYNAMODB_TABLE_POSTS: ${self:custom.dynamodb.tablePosts}
-    DYNAMODB_TABLE_COMMENTS: ${self:custom.dynamodb.tableComments}
     DYNAMODB_TABLE_USERS: ${self:custom.dynamodb.tableUsers}
     AUTH_SECRET: ${self:custom.auth.secret}
+    AUTH_MASTER_PASSWORD: ${self:custom.auth.masterPassword}
+    S3_BUCKET_DATA: ${self:custom.s3.bucketData}
   iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: 
+        - "arn:aws:s3:::${self:custom.s3.bucketData}"
+        - "arn:aws:s3:::${self:custom.s3.bucketData}/*"
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -62,6 +69,7 @@ functions:
       - http:
           path: rest/user/register
           method: post
+          authorizer: user_auth # Only registered users can add new users
   user_login:
     handler: server/src/rest/users.login
     events:
@@ -74,87 +82,103 @@ functions:
       - http:
           path: rest/user/logout
           method: post
-  # Post handling functions
-  post_list:
-    handler: server/src/rest/posts.list
+  # Notes handling functions
+  dir_list:
+    handler: server/src/rest/dirs.list
     events:
       - http:
-          path: rest/post
-          method: get
-  post_read:
-    handler: server/src/rest/posts.read
-    events:
-      - http:
-          path: rest/post/{postId}
+          path: rest/note/{prefix}
           method: get
           request:
             parameters:
-              postId: true
-  post_create:
-    handler: server/src/rest/posts.create
-    events:
-      - http:
-          path: rest/post
-          method: post
+              prefix: true
           authorizer: user_auth
-  # Comments handling functions
-  comment_list:
-    handler: server/src/rest/comments.list
+  dir_read:
+    handler: server/src/rest/dirs.read
     events:
       - http:
-          path: rest/post/{postId}/comment
+          path: rest/note/{prefix}/{directory}
           method: get
           request:
             parameters:
-              postId: true
-  comment_create:
-    handler: server/src/rest/comments.create
+              prefix: true
+              directory: true
+          authorizer: user_auth
+  dir_create:
+    handler: server/src/rest/dirs.create
     events:
       - http:
-          path: rest/post/{postId}/comment
+          path: rest/note/{prefix}
           method: post
-          authorizer: user_auth
           request:
             parameters:
-              postId: true
-
+              prefix: true
+          authorizer: user_auth
+  dir_update:
+    handler: server/src/rest/dirs.update
+    events:
+      - http:
+          path: rest/note/{prefix}/{directory}
+          method: put
+          request:
+            parameters:
+              prefix: true
+              directory: true
+          authorizer: user_auth
+  dir_delete:
+    handler: server/src/rest/dirs.delete
+    events:
+      - http:
+          path: rest/note/{prefix}/{directory}
+          method: delete
+          request:
+            parameters:
+              prefix: true
+              directory: true
+          authorizer: user_auth
+  file_create:
+    handler: server/src/rest/files.create
+    events:
+      - http:
+          path: rest/note/{prefix}/{directory}
+          method: post
+          request:
+            parameters:
+              prefix: true
+              directory: true
+          authorizer: user_auth
+  file_read:
+    handler: server/src/rest/files.read
+    events:
+      - http:
+          path: rest/note/{prefix}/{directory}/{file}
+          method: get
+          request:
+            parameters:
+              prefix: true
+              directory: true
+              file: true
+          authorizer: user_auth
+  file_update:
+    handler: server/src/rest/files.update
+    events:
+      - http:
+          path: rest/note/{prefix}/{directory}/{file}
+          method: put
+          request:
+            parameters:
+              prefix: true
+              directory: true
+              file: true
+          authorizer: user_auth
 resources:
   Resources:
-    DynamoDbTablePosts:
-      Type: 'AWS::DynamoDB::Table'
+    S3BucketData:
+      Type: AWS::S3::Bucket
       DeletionPolicy: Delete
       Properties:
-        AttributeDefinitions:
-          -
-            AttributeName: id
-            AttributeType: S
-        KeySchema:
-          -
-            AttributeName: id
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-        TableName: ${self:custom.dynamodb.tablePosts}
-    DynamoDbTableComments:
-      Type: 'AWS::DynamoDB::Table'
-      DeletionPolicy: Delete
-      Properties:
-        AttributeDefinitions:
-          -
-            AttributeName: postid
-            AttributeType: S
-          -
-            AttributeName: id
-            AttributeType: S
-        KeySchema:
-          -
-            AttributeName: postid
-            KeyType: HASH
-          -
-            AttributeName: id
-            KeyType: RANGE
-        BillingMode: PAY_PER_REQUEST
-        TableName: ${self:custom.dynamodb.tableComments}
-    DynamoDbTableUserss:
+        BucketName: ${self:custom.s3.bucketData}
+    DynamoDbTableUsers:
       Type: 'AWS::DynamoDB::Table'
       DeletionPolicy: Delete
       Properties:

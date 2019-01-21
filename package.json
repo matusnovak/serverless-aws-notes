@@ -12,5 +12,8 @@
     "postinstall": "cd client && npm install && cd .. && cd server && npm install && cd .."
   },
   "author": "Matus Novak",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.381.0"
+  }
 }
